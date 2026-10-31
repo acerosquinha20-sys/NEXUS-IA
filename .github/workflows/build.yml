@@ -26,8 +26,8 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Instalar Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Aceitar licenças do Android SDK (o SDK já vem no servidor)
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: Montar a pasta www com os arquivos do app
         run: |
