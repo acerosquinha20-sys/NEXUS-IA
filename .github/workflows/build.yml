@@ -34,6 +34,14 @@ jobs:
           mkdir -p www
           cp index.html style.css md.js api.js app.js login-bg.jpg chat-bg.jpg icon.png www/
 
+      - name: Embutir a chave de API (vem dos Secrets, não fica no código)
+        env:
+          NEXUS_API_KEY: ${{ secrets.NEXUS_API_KEY }}
+          NEXUS_PROVIDER: ${{ secrets.NEXUS_PROVIDER }}
+          NEXUS_MODEL: ${{ secrets.NEXUS_MODEL }}
+        run: |
+          node -e 'const e=process.env;const c={};if(e.NEXUS_API_KEY)c.apiKey=e.NEXUS_API_KEY.trim();if(e.NEXUS_PROVIDER)c.provider=e.NEXUS_PROVIDER.trim();if(e.NEXUS_MODEL)c.model=e.NEXUS_MODEL.trim();require("fs").writeFileSync("www/config.js","window.NEXUS_CONFIG="+JSON.stringify(c)+";\n");console.log(c.apiKey?"Chave embutida no app.":"Nenhuma chave embutida (secret NEXUS_API_KEY vazio).")'
+
       - name: Instalar dependências
         run: npm install
 
