@@ -1,0 +1,9 @@
+{
+  "appId": "com.nexusia.app",
+  "appName": "Nexus IA",
+  "webDir": "www",
+  "backgroundColor": "#000000",
+  "server": {
+    "androidScheme": "https"
+  }
+}

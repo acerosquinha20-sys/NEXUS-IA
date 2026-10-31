@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#000000">
+<title>Nexus IA</title>
+<link rel="icon" href="icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== SPLASH ===== -->
+<div id="splash">
+  <div class="logo-wrap"><span class="ring"></span><span class="ring r2"></span><img src="icon.png" alt="Nexus IA"></div>
+  <div class="brand">NEXUS IA</div>
+  <div class="loadbar"><i></i></div>
+</div>
+
+<!-- ===== LOGIN / CRIAR CONTA ===== -->
+<div id="auth" class="hidden">
+  <div class="embers" id="embers"></div>
+  <form class="auth-card" id="authCard" autocomplete="on" novalidate>
+    <div class="auth-logo">
+      <div class="logo-wrap"><span class="ring"></span><span class="ring r2"></span><img src="icon.png" alt=""></div>
+      <div class="brand">NEXUS IA</div>
+      <small id="authSub">Entre para acordar o rei das IAs</small>
+    </div>
+    <div class="tabs" id="authTabs">
+      <span class="pill"></span>
+      <button type="button" data-mode="login" class="on">Entrar</button>
+      <button type="button" data-mode="register">Criar conta</button>
+    </div>
+    <div class="field"><label for="aEmail">E-mail</label><input id="aEmail" type="email" inputmode="email" autocomplete="username" placeholder="voce@email.com"></div>
+    <div class="field"><label for="aPass">Senha</label><input id="aPass" type="password" autocomplete="current-password" placeholder="••••••••"><button type="button" class="eye" data-eye="aPass" aria-label="Mostrar senha"></button></div>
+    <div class="field hidden" id="aPass2Wrap"><label for="aPass2">Confirmar senha</label><input id="aPass2" type="password" autocomplete="new-password" placeholder="Repita a senha"><button type="button" class="eye" data-eye="aPass2" aria-label="Mostrar senha"></button></div>
+    <div class="err" id="authErr"></div>
+    <button class="btn" id="authBtn" type="submit">Entrar</button>
+    <div class="auth-note">A conta fica salva só neste aparelho.<br>Sua senha é guardada criptografada.</div>
+  </form>
+</div>
+
+<!-- ===== APP ===== -->
+<div id="app" class="hidden">
+  <div class="top">
+    <button class="icon-btn" id="menuBtn" aria-label="Histórico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
+    <div class="ttl" id="ttl"><img src="icon.png" alt=""><div><b>NEXUS IA</b><span id="chatTitle">Nova conversa</span></div></div>
+    <button class="icon-btn" id="newBtn" aria-label="Nova conversa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="icon-btn" id="cfgBtn" aria-label="Configurações"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </div>
+
+  <div id="chat"></div>
+  <button class="scrolldown hidden" id="downBtn" aria-label="Ir para o fim"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14m0 0-6-6m6 6 6-6"/></svg></button>
+
+  <div class="composer">
+    <div class="cmodes"><button type="button" class="co-btn" id="coBtn" aria-pressed="false" title="Responder só com código"><b>&lt;/&gt;</b> CODE ONLY</button></div>
+    <div class="cbox">
+      <textarea id="input" rows="1" placeholder="Pergunte qualquer coisa à Nexus…" enterkeyhint="send"></textarea>
+      <button class="send" id="sendBtn" aria-label="Enviar"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.3 10.1l12.5 1.9-12.5 1.9z"/></svg></button>
+    </div>
+    <div class="hint">A Nexus IA pode errar. Confira informações importantes.</div>
+  </div>
+</div>
+
+<!-- ===== HISTÓRICO ===== -->
+<div class="scrim" id="scrim"></div>
+<aside id="drawer">
+  <div class="d-banner"><div class="brand">NEXUS IA</div></div>
+  <button class="btn d-new" id="dNew">+ Nova conversa</button>
+  <div class="d-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="dSearch" placeholder="Buscar conversas…" autocomplete="off"></div>
+  <div id="hist"></div>
+  <div class="d-foot">
+    <div class="who">Conectado como<b id="dUser"></b></div>
+    <button class="icon-btn" id="dCfg" aria-label="Configurações"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg></button>
+  </div>
+</aside>
+
+<!-- ===== CONFIGURAÇÕES ===== -->
+<section id="settings">
+  <div class="s-banner"><button class="icon-btn close" id="sClose" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button><h2>CONFIGURAÇÕES</h2></div>
+  <div class="s-tabs" id="sTabs">
+    <button data-s="ia" class="on">🤖 IA</button>
+    <button data-s="look">🎨 Aparência</button>
+    <button data-s="acc">👤 Conta</button>
+    <button data-s="data">🗂️ Dados</button>
+    <button data-s="about">💀 Sobre</button>
+  </div>
+  <div class="s-body">
+
+    <div class="s-sec on" data-sec="ia">
+      <div class="card">
+        <h3>Conexão com a IA</h3>
+        <p class="d">Cole aqui a sua chave de API. Para o Gemini grátis: aistudio.google.com → Get API key. A chave fica salva só neste aparelho.</p>
+        <div class="field"><label>Provedor</label><select id="sProv"></select></div>
+        <div class="field"><label>Chave de API</label><input id="sKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cole sua chave aqui"><button type="button" class="eye" data-eye="sKey" aria-label="Mostrar chave"></button></div>
+        <button class="btn small ghost" id="sPaste" type="button" style="margin-bottom:14px">📋 Colar chave da área de transferência</button>
+        <div class="field"><label>Modelo</label><input id="sModel" list="models" autocomplete="off" autocapitalize="off" spellcheck="false"><datalist id="models"></datalist></div>
+        <div class="field hidden" id="sBaseWrap"><label>URL base da API</label><input id="sBase" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://api.exemplo.com/v1"></div>
+        <button class="btn small" id="sTest" type="button">⚡ Testar conexão</button>
+        <div class="err" id="sTestOut" style="margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <h3>Personalidade</h3>
+        <p class="d">Instrução fixa que a Nexus IA segue em todas as conversas. Por padrão é o motor Universal Code Engine.</p>
+        <div class="field"><textarea id="sSys" rows="7"></textarea></div>
+        <button class="btn small ghost" id="sSysReset" type="button" style="margin-bottom:14px">Restaurar instrução do motor</button>
+        <div class="row"><span>Modo CODE ONLY<small>Responde só com o código, sem introdução nem explicação</small></span><label class="switch"><input type="checkbox" id="sCode"><i></i></label></div>
+        <div class="row"><span>Criatividade<small id="sTempV"></small></span></div>
+        <input type="range" id="sTemp" min="0" max="1.5" step="0.1">
+      </div>
+    </div>
+
+    <div class="s-sec" data-sec="look">
+      <div class="card">
+        <h3>Aparência</h3>
+        <div class="row"><span>Animações<small>Pulos, giros e efeitos</small></span><label class="switch"><input type="checkbox" id="sAnim"><i></i></label></div>
+        <div class="row"><span>Imagem de fundo no chat<small>Caveira NEXUS atrás das mensagens</small></span><label class="switch"><input type="checkbox" id="sBg"><i></i></label></div>
+        <div class="row"><span>Enter envia a mensagem<small>Desligado: Enter pula linha</small></span><label class="switch"><input type="checkbox" id="sEnter"><i></i></label></div>
+        <div class="row" style="display:block"><span>Tamanho da letra<small id="sFsV"></small></span><input type="range" id="sFs" min="14" max="20" step="1" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <div class="s-sec" data-sec="acc">
+      <div class="card">
+        <div class="profile"><img src="icon.png" alt=""><div><b id="pEmail"></b><small>Conta Nexus IA (neste aparelho)</small></div></div>
+      </div>
+      <div class="card">
+        <h3>Trocar senha</h3>
+        <div class="field"><label>Senha atual</label><input id="pOld" type="password" autocomplete="current-password"></div>
+        <div class="field"><label>Nova senha</label><input id="pNew" type="password" autocomplete="new-password" placeholder="mínimo 6 caracteres"></div>
+        <button class="btn small" id="pChange" type="button">Salvar nova senha</button>
+        <div class="err" id="pErr" style="margin-top:10px"></div>
+      </div>
+      <div class="card stack">
+        <button class="btn ghost" id="pLogout" type="button">Sair da conta</button>
+        <button class="btn danger" id="pDelete" type="button">Excluir minha conta</button>
+      </div>
+    </div>
+
+    <div class="s-sec" data-sec="data">
+      <div class="card">
+        <h3>Seus dados</h3>
+        <div class="stat"><div><b id="stChats">0</b><small>conversas</small></div><div><b id="stMsgs">0</b><small>mensagens</small></div></div>
+      </div>
+      <div class="card stack">
+        <button class="btn ghost" id="dExport" type="button">⬇ Exportar histórico (.txt)</button>
+        <button class="btn danger" id="dClear" type="button">Apagar todas as conversas</button>
+      </div>
+    </div>
+
+    <div class="s-sec" data-sec="about">
+      <div class="card" style="text-align:center">
+        <div class="logo-wrap" style="margin:0 auto"><span class="ring"></span><span class="ring r2"></span><img src="icon.png" alt=""></div>
+        <div class="brand" style="font-size:26px;margin-top:6px">NEXUS IA</div>
+        <p class="d" style="margin:8px 0 0">Versão 1.1 · Universal Code Engine · tema vermelho e preto<br>Conversas, histórico e chave de API ficam salvos somente no seu aparelho.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="toasts"></div>
+
+<script src="md.js"></script>
+<script src="api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
