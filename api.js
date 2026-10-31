@@ -53,7 +53,7 @@
     return "Erro " + status + (msg ? ": " + msg : "");
   }
 
-  async function* sse(resp, signal) {
+  async function* sse(resp) {
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
@@ -73,6 +73,38 @@
     if (rest) yield rest;
   }
 
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const abortErr = () => { const e = new Error("Aborted"); e.name = "AbortError"; return e; };
+
+  /* Abre a conexão com limite de 40 s e 1 nova tentativa automática (erro de rede, timeout ou 5xx). */
+  async function request(url, init, signal) {
+    for (let attempt = 0; ; attempt++) {
+      if (signal && signal.aborted) throw abortErr();
+      const ctl = new AbortController();
+      const onAbort = () => ctl.abort();
+      if (signal) signal.addEventListener("abort", onAbort, { once: true });
+      const release = () => { if (signal) signal.removeEventListener("abort", onAbort); };
+      let timedOut = false;
+      const to = setTimeout(() => { timedOut = true; ctl.abort(); }, 40000);
+      try {
+        const r = await fetch(url, { ...init, signal: ctl.signal });
+        clearTimeout(to);
+        if (r.ok) return { r, ctl, release };
+        const body = await r.text(); release();
+        if (r.status >= 500 && attempt < 1) { await sleep(800); continue; }
+        return { r: null, status: r.status, body };
+      } catch (e) {
+        clearTimeout(to); release();
+        if (signal && signal.aborted) throw abortErr();
+        if (attempt < 1) { await sleep(timedOut ? 0 : 800); continue; }
+        if (timedOut) throw new Error("A IA demorou demais para começar a responder. Confira a internet e tente de novo.");
+        throw e;
+      }
+    }
+  }
+
+  const NO_THINK_FAIL = new Set(); // modelos que não aceitam o modo rápido
+
   /**
    * messages: [{role:'user'|'assistant', content}]
    * onToken(texto) é chamado a cada pedaço. Retorna o texto completo.
@@ -86,6 +118,7 @@
     const system = buildSystem(settings);
     const recent = messages.slice(-24);
     let full = "";
+    let res, iter;
 
     if (prov === "gemini") {
       const url = PROVIDERS.gemini.base + "/models/" + encodeURIComponent(model) + ":streamGenerateContent?alt=sse";
@@ -94,16 +127,25 @@
         generationConfig: { temperature: temp },
       };
       if (system) body.systemInstruction = { parts: [{ text: system }] };
-      const r = await fetch(url, { method: "POST", signal, headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) });
-      if (!r.ok) throw new Error(friendly(r.status, await r.text(), prov));
-      for await (const data of sse(r, signal)) {
-        let j; try { j = JSON.parse(data); } catch (e) { continue; }
-        if (j.error) throw new Error(j.error.message || "Erro da API");
-        const parts = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts;
-        if (parts) for (const p of parts) if (p.text && !p.thought) { full += p.text; onToken(p.text); }
-        const fr = j.candidates && j.candidates[0] && j.candidates[0].finishReason;
-        if (fr === "SAFETY" && !full) throw new Error("A resposta foi bloqueada pelo filtro de segurança do Gemini.");
+      const fast = settings.fast !== false && !NO_THINK_FAIL.has(model);
+      if (fast) body.generationConfig.thinkingConfig = { thinkingBudget: 0 }; // responde logo, sem "pensar" antes
+      const init = () => ({ method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) });
+      res = await request(url, init(), signal);
+      if (!res.r && res.status === 400 && fast && /think|budget/i.test(res.body || "")) {
+        NO_THINK_FAIL.add(model); delete body.generationConfig.thinkingConfig;
+        res = await request(url, init(), signal);
       }
+      if (!res.r) throw new Error(friendly(res.status, res.body, prov));
+      iter = async function* () {
+        for await (const data of sse(res.r)) {
+          let j; try { j = JSON.parse(data); } catch (e) { continue; }
+          if (j.error) throw new Error(j.error.message || "Erro da API");
+          const parts = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts;
+          if (parts) for (const p of parts) if (p.text && !p.thought) yield p.text;
+          const fr = j.candidates && j.candidates[0] && j.candidates[0].finishReason;
+          if (fr === "SAFETY" && !full) throw new Error("A resposta foi bloqueada pelo filtro de segurança do Gemini.");
+        }
+      };
     } else {
       const base = ((settings.baseUrl || "").trim() || PROVIDERS[prov].base).replace(/\/+$/, "");
       if (!base) throw new Error("Preencha a URL base em Configurações → IA.");
@@ -112,16 +154,29 @@
       recent.forEach((m) => msgs.push({ role: m.role, content: m.content }));
       const headers = { "Content-Type": "application/json", Authorization: "Bearer " + key };
       if (prov === "openrouter") { headers["HTTP-Referer"] = "https://nexus-ia.app"; headers["X-Title"] = "Nexus IA"; }
-      const r = await fetch(base + "/chat/completions", { method: "POST", signal, headers, body: JSON.stringify({ model, messages: msgs, stream: true, temperature: temp }) });
-      if (!r.ok) throw new Error(friendly(r.status, await r.text(), prov));
-      for await (const data of sse(r, signal)) {
-        if (data === "[DONE]") break;
-        let j; try { j = JSON.parse(data); } catch (e) { continue; }
-        if (j.error) throw new Error(j.error.message || "Erro da API");
-        const t = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
-        if (t) { full += t; onToken(t); }
-      }
+      res = await request(base + "/chat/completions", { method: "POST", headers, body: JSON.stringify({ model, messages: msgs, stream: true, temperature: temp }) }, signal);
+      if (!res.r) throw new Error(friendly(res.status, res.body, prov));
+      iter = async function* () {
+        for await (const data of sse(res.r)) {
+          if (data === "[DONE]") return;
+          let j; try { j = JSON.parse(data); } catch (e) { continue; }
+          if (j.error) throw new Error(j.error.message || "Erro da API");
+          const t = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
+          if (t) yield t;
+        }
+      };
     }
+
+    // vigia: se a IA ficar 60 s sem mandar nada, encerra sem travar o app
+    let stalled = false, wd;
+    const arm = () => { clearTimeout(wd); wd = setTimeout(() => { stalled = true; res.ctl.abort(); }, 60000); };
+    arm();
+    try {
+      for await (const t of iter()) { arm(); full += t; onToken(t); }
+    } catch (e) {
+      if (stalled && !(signal && signal.aborted)) throw new Error("A IA parou de responder no meio. O que já chegou foi mantido.");
+      throw e;
+    } finally { clearTimeout(wd); res.release(); }
     if (!full) throw new Error("A IA não devolveu texto. Tente de novo ou troque o modelo.");
     return full;
   }

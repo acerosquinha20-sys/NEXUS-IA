@@ -157,15 +157,22 @@
     return t;
   }
 
-  function codeBlock(lang, code) {
+  const hlCache = new Map();
+  function hlCached(code, lang) {
+    const k = lang + "\u0001" + code;
+    let v = hlCache.get(k);
+    if (v === undefined) { v = hl(code, lang); hlCache.set(k, v); if (hlCache.size > 60) hlCache.delete(hlCache.keys().next().value); }
+    return v;
+  }
+  function codeBlock(lang, code, plain) {
     const label = lang || "código";
     return '<div class="code"><div class="code-head"><span class="dots"><i></i><i></i><i></i></span><span class="lang">' + esc(label) +
       '</span><button class="cbtn" data-act="copy">' + ICON_COPY + '<span>Copiar</span></button>' +
       '<button class="cbtn" data-act="dl">' + ICON_DL + '<span>.txt</span></button></div>' +
-      '<pre><code>' + hl(code, lang) + "</code></pre></div>";
+      '<pre><code>' + (plain ? esc(code) : hlCached(code, lang)) + "</code></pre></div>";
   }
 
-  function render(src) {
+  function render(src, streaming) {
     const lines = src.replace(/\r\n?/g, "\n").split("\n");
     let html = "", i = 0, para = [];
     const flush = () => { if (para.length) { html += "<p>" + inline(para.join("\n")).replace(/\n/g, "<br>") + "</p>"; para = []; } };
@@ -177,8 +184,9 @@
         const fence = m[1][0], lang = m[2], buf = [];
         i++;
         while (i < lines.length && !new RegExp("^\\s*" + fence + "{3,}\\s*$").test(lines[i])) buf.push(lines[i++]);
+        const closed = i < lines.length;
         i++; // fecha
-        html += codeBlock(lang, buf.join("\n"));
+        html += codeBlock(lang, buf.join("\n"), streaming && !closed); // bloco ainda aberto: sem colorir (rápido)
         continue;
       }
       if (/^\s*$/.test(ln)) { flush(); i++; continue; }

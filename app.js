@@ -6,6 +6,7 @@
   const MD = window.NexusMD, API = window.NexusAPI;
   const cap = window.Capacitor;
   const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  const CFG = window.NEXUS_CONFIG || {};
   const plug = (n) => (cap && cap.Plugins && cap.Plugins[n]) || null;
 
   /* ---------- armazenamento ---------- */
@@ -17,7 +18,7 @@
   const OLD_SYSTEM = "Você é a Nexus IA, uma assistente inteligente, rápida e direta. Responda no mesmo idioma do usuário (por padrão português do Brasil). Seja clara e bem organizada. Quando enviar código, use blocos de código markdown com a linguagem indicada (```js, ```python, etc.) e explique de forma curta.";
   const DEFAULTS = {
     provider: "gemini", apiKey: "", model: "gemini-flash-latest", baseUrl: "", temperature: 0.7,
-    system: API.ENGINE_PROMPT, codeOnly: false,
+    system: API.ENGINE_PROMPT, codeOnly: false, fast: true,
     anim: true, bg: true, fontSize: 16, enterSend: !!(window.matchMedia && matchMedia("(pointer:fine)").matches),
   };
 
@@ -25,7 +26,11 @@
   let streaming = false, abortCtl = null;
 
   const K = { users: "nexus.users", session: "nexus.session", chats: (u) => "nexus.chats." + u, cfg: (u) => "nexus.settings." + u };
-  const saveChats = () => ls.set(K.chats(user), chats);
+  let warnedFull = false;
+  const saveChats = () => {
+    if (ls.set(K.chats(user), chats)) return;
+    if (!warnedFull) { warnedFull = true; toast("⚠️ Memória do app cheia: apague conversas antigas (☰ → lixeira) para continuar salvando.", 5000); }
+  };
   const saveCfg = () => ls.set(K.cfg(user), settings);
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -154,6 +159,12 @@
     settings = { ...DEFAULTS, ...ls.get(K.cfg(user), {}) };
     // quem ainda usava a instrução antiga (nunca editada) passa a usar o motor de código
     if (!(settings.system || "").trim() || settings.system === OLD_SYSTEM) settings.system = DEFAULTS.system;
+    if (CFG.apiKey && !(settings.apiKey || "").trim()) { // chave embutida no build
+      settings.apiKey = CFG.apiKey;
+      if (CFG.provider && API.PROVIDERS[CFG.provider]) { settings.provider = CFG.provider; settings.model = CFG.model || API.PROVIDERS[CFG.provider].model; }
+      else if (CFG.model) settings.model = CFG.model;
+      saveCfg();
+    }
     chats = ls.get(K.chats(user), []);
     curId = null;
     $("#auth").classList.add("hidden");
@@ -177,6 +188,7 @@
     $("#coBtn").setAttribute("aria-pressed", settings.codeOnly ? "true" : "false");
     $("#input").placeholder = settings.codeOnly ? "Code Only: descreva o que quer em código…" : "Pergunte qualquer coisa à Nexus…";
     const sc = $("#sCode"); if (sc) sc.checked = !!settings.codeOnly;
+    const sf = $("#sFast"); if (sf) sf.checked = settings.fast !== false;
   }
   function setCodeOnly(on) {
     settings.codeOnly = !!on; saveCfg(); applyLook();
@@ -259,6 +271,7 @@
     $("#sSys").oninput = (e) => { settings.system = e.target.value; saveCfg(); };
     $("#sSysReset").onclick = () => { settings.system = DEFAULTS.system; $("#sSys").value = settings.system; saveCfg(); toast("Instrução do motor restaurada"); };
     $("#sCode").onchange = (e) => setCodeOnly(e.target.checked);
+    $("#sFast").onchange = (e) => { settings.fast = e.target.checked; saveCfg(); };
     $("#coBtn").onclick = () => setCodeOnly(!settings.codeOnly);
     $("#sTemp").oninput = (e) => { settings.temperature = +e.target.value; $("#sTempV").textContent = tempLabel(settings.temperature); saveCfg(); };
     $("#sAnim").onchange = (e) => { settings.anim = e.target.checked; saveCfg(); applyLook(); };
@@ -373,12 +386,12 @@
 
     abortCtl = new AbortController(); setBusy(true);
     let acc = "", timer = null, first = true;
-    const paint = () => { timer = null; md.innerHTML = MD.render(acc); md.classList.add("streaming-cursor"); scrollEnd(); };
+    const paint = () => { timer = null; md.innerHTML = MD.render(acc, true); md.classList.add("streaming-cursor"); scrollEnd(); };
     try {
       await API.streamChat({
         settings, signal: abortCtl.signal,
         messages: c.messages.map((m) => ({ role: m.role, content: m.content })),
-        onToken(t) { acc += t; if (first) { first = false; el.classList.remove("thinking"); } if (!timer) timer = setTimeout(paint, 45); },
+        onToken(t) { acc += t; if (first) { first = false; el.classList.remove("thinking"); } if (!timer) timer = setTimeout(paint, Math.min(50 + acc.length / 30, 450)); }, // quanto maior o texto, mais espaçado o redesenho (evita travar)
       });
     } catch (e) {
       if (timer) clearTimeout(timer);
@@ -461,6 +474,12 @@
     const em = $("#embers");
     for (let i = 0; i < 22; i++) { const e = document.createElement("i"); const s = 3 + Math.random() * 6; e.style.cssText = "left:" + Math.random() * 100 + "%;width:" + s + "px;height:" + s + "px;animation-duration:" + (5 + Math.random() * 7) + "s;animation-delay:" + Math.random() * 8 + "s"; em.appendChild(e); }
   }
+
+  /* ---------- proteção contra travamentos ---------- */
+  let lastErrAt = 0;
+  function softFail(msg) { const n = Date.now(); if (n - lastErrAt < 4000) return; lastErrAt = n; try { toast("⚠️ " + String(msg || "Erro inesperado").slice(0, 90), 3500); } catch (e) {} }
+  window.addEventListener("error", (e) => { softFail(e.message); if (streaming && !abortCtl) setBusy(false); });
+  window.addEventListener("unhandledrejection", (e) => { e.preventDefault && e.preventDefault(); softFail(e.reason && e.reason.message); });
 
   /* ---------- início ---------- */
   function init() {
