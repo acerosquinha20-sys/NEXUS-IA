@@ -1,7 +1,7 @@
 /* Nexus IA — conexão com a IA (streaming = resposta aparece enquanto é gerada, sem espera) */
 (function () {
   const PROVIDERS = {
-    gemini: { name: "Google Gemini (grátis)", base: "https://generativelanguage.googleapis.com/v1beta", model: "gemini-flash-latest" },
+    gemini: { name: "Google Gemini (grátis)", base: "https://generativelanguage.googleapis.com/v1beta", model: "gemini-2.5-flash" },
     groq: { name: "Groq (grátis, muito rápido)", base: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" },
     openrouter: { name: "OpenRouter", base: "https://openrouter.ai/api/v1", model: "meta-llama/llama-3.3-70b-instruct:free" },
     openai: { name: "OpenAI (ChatGPT)", base: "https://api.openai.com/v1", model: "gpt-4o-mini" },
@@ -46,10 +46,10 @@
     let msg = "";
     try { const j = JSON.parse(body); msg = (j.error && (j.error.message || j.error)) || j.message || ""; if (typeof msg !== "string") msg = JSON.stringify(msg); } catch (e) { msg = (body || "").slice(0, 200); }
     if (status === 400 && /api key|API_KEY/i.test(msg)) return "Chave de API inválida. Confira em Configurações → IA.";
-    if (status === 401 || status === 403) return "Chave de API recusada (" + status + "). Confira se copiou a chave inteira e se ela é do provedor escolhido.";
-    if (status === 404) return "Modelo não encontrado. Troque o nome do modelo em Configurações → IA.";
+    if (status === 401 || status === 403) return "Chave de API recusada (" + status + "). Confira se copiou a chave inteira e se ela é do provedor escolhido." + (msg ? "\n\nDetalhe do servidor: " + String(msg).slice(0, 200) : "");
+    if (status === 404) return "Modelo não encontrado. Troque o nome do modelo em Configurações → IA." + (msg ? "\n\nDetalhe do servidor: " + String(msg).slice(0, 220) : "");
     if (status === 429) return "Limite de uso grátis atingido. Espere um pouco e tente de novo, ou troque de modelo/provedor.";
-    if (status >= 500) return "O servidor da IA está com problema agora (" + status + "). Tente de novo em instantes.";
+    if (status >= 500) return "O servidor da IA está com problema agora (" + status + "). Tente de novo em instantes." + (msg ? "\n\nDetalhe do servidor: " + String(msg).slice(0, 160) : "");
     return "Erro " + status + (msg ? ": " + msg : "");
   }
 
@@ -104,7 +104,7 @@
   }
 
   const NO_THINK_FAIL = new Set(); // modelos que não aceitam o modo rápido
-  const GEMINI_FALLBACKS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
+  const GEMINI_FALLBACKS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"];
 
   /**
    * messages: [{role:'user'|'assistant', content}]
@@ -142,7 +142,7 @@
           res = await request(url, init(), signal);
         }
         if (res.r) { if (mi > 0 && onInfo) onInfo("Modelo ocupado. Usando " + m + " agora."); break; }
-        const retryable = [429, 500, 502, 503, 504].includes(res.status) || (mi > 0 && res.status === 404);
+        const retryable = [404, 429, 500, 502, 503, 504].includes(res.status); // 404 = nome de modelo que não existe: tenta o próximo
         if (!retryable) break; // erro de chave, etc.: trocar de modelo não adianta
       }
       if (!res.r) throw new Error(friendly(res.status, res.body, prov));
