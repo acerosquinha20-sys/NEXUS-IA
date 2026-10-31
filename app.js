@@ -389,7 +389,7 @@
     const paint = () => { timer = null; md.innerHTML = MD.render(acc, true); md.classList.add("streaming-cursor"); scrollEnd(); };
     try {
       await API.streamChat({
-        settings, signal: abortCtl.signal,
+        settings, signal: abortCtl.signal, onInfo: (m) => toast(m, 2600),
         messages: c.messages.map((m) => ({ role: m.role, content: m.content })),
         onToken(t) { acc += t; if (first) { first = false; el.classList.remove("thinking"); } if (!timer) timer = setTimeout(paint, Math.min(50 + acc.length / 30, 450)); }, // quanto maior o texto, mais espaçado o redesenho (evita travar)
       });

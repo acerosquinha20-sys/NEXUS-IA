@@ -104,12 +104,13 @@
   }
 
   const NO_THINK_FAIL = new Set(); // modelos que não aceitam o modo rápido
+  const GEMINI_FALLBACKS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
 
   /**
    * messages: [{role:'user'|'assistant', content}]
    * onToken(texto) é chamado a cada pedaço. Retorna o texto completo.
    */
-  async function streamChat({ settings, messages, signal, onToken }) {
+  async function streamChat({ settings, messages, signal, onToken, onInfo }) {
     const prov = settings.provider || "gemini";
     const key = (settings.apiKey || "").trim();
     if (!key) throw new Error("NO_KEY");
@@ -127,13 +128,22 @@
         generationConfig: { temperature: temp },
       };
       if (system) body.systemInstruction = { parts: [{ text: system }] };
-      const fast = settings.fast !== false && !NO_THINK_FAIL.has(model);
-      if (fast) body.generationConfig.thinkingConfig = { thinkingBudget: 0 }; // responde logo, sem "pensar" antes
       const init = () => ({ method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) });
-      res = await request(url, init(), signal);
-      if (!res.r && res.status === 400 && fast && /think|budget/i.test(res.body || "")) {
-        NO_THINK_FAIL.add(model); delete body.generationConfig.thinkingConfig;
+      // se o modelo estiver sobrecarregado (503/429...), troca sozinho para outro modelo do Gemini
+      const tryModels = [model, ...GEMINI_FALLBACKS.filter((m) => m !== model)];
+      for (let mi = 0; mi < tryModels.length; mi++) {
+        const m = tryModels[mi];
+        const url = PROVIDERS.gemini.base + "/models/" + encodeURIComponent(m) + ":streamGenerateContent?alt=sse";
+        const fast = settings.fast !== false && !NO_THINK_FAIL.has(m);
+        if (fast) body.generationConfig.thinkingConfig = { thinkingBudget: 0 }; else delete body.generationConfig.thinkingConfig; // responde logo, sem "pensar" antes
         res = await request(url, init(), signal);
+        if (!res.r && res.status === 400 && fast && /think|budget/i.test(res.body || "")) {
+          NO_THINK_FAIL.add(m); delete body.generationConfig.thinkingConfig;
+          res = await request(url, init(), signal);
+        }
+        if (res.r) { if (mi > 0 && onInfo) onInfo("Modelo ocupado. Usando " + m + " agora."); break; }
+        const retryable = [429, 500, 502, 503, 504].includes(res.status) || (mi > 0 && res.status === 404);
+        if (!retryable) break; // erro de chave, etc.: trocar de modelo não adianta
       }
       if (!res.r) throw new Error(friendly(res.status, res.body, prov));
       iter = async function* () {
